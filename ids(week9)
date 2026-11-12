@@ -1,0 +1,101 @@
+import requests
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
+import os
+
+# 1. Retrieving HTML using Requests
+url = "https://science.nasa.gov/mars/"
+
+response = requests.get(
+    url,
+    headers={"User-Agent": "Mozilla/5.0"},
+    timeout=20
+)
+
+response.raise_for_status()
+html_text = response.text
+
+print("1. HTML CONTENT OF WEBPAGE")
+print(html_text[:2000])
+
+# 2. Parsing HTML using BeautifulSoup
+soup = BeautifulSoup(html_text, "html.parser")
+
+print("\n2. WEBPAGE TITLE")
+if soup.title:
+    print(soup.title.get_text(strip=True))
+
+# 3. Extracting Headings
+print("\n3. HEADINGS")
+
+for heading in soup.find_all(["h1", "h2", "h3"]):
+    text = heading.get_text(" ", strip=True)
+    if text:
+        print(text)
+
+# 4. Extracting Paragraphs
+print("\n4. PARAGRAPHS")
+
+for paragraph in soup.find_all("p"):
+    text = paragraph.get_text(" ", strip=True)
+    if text:
+        print(text)
+
+# 5. Extracting and Downloading Images
+print("\n5. DOWNLOADING IMAGES")
+
+folder = "NASA_Mars_Images"
+os.makedirs(folder, exist_ok=True)
+
+count = 1
+
+for image in soup.find_all("img"):
+    image_url = (
+        image.get("src")
+        or image.get("data-src")
+    )
+
+    if not image_url:
+        continue
+
+    image_url = urljoin(url, image_url)
+
+    try:
+        img_response = requests.get(
+            image_url,
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=20
+        )
+
+        img_response.raise_for_status()
+
+        content_type = img_response.headers.get(
+            "Content-Type", ""
+        )
+
+        if not content_type.startswith("image/"):
+            continue
+
+        extension = content_type.split("/")[-1].split(";")[0]
+        
+        if extension == "jpeg":
+            extension = "jpg"
+
+        if extension not in ["jpg", "png", "webp", "gif"]:
+            continue
+
+        filepath = os.path.join(
+            folder, str(count) + "." + extension
+        )
+
+        with open(filepath, "wb") as file:
+            file.write(img_response.content)
+
+        print("Image downloaded:", filepath)
+        count += 1
+
+    except requests.RequestException as error:
+        print("Image download failed:", error)
+
+print("\nTotal Images Downloaded:", count - 1)
+print("\nExperiment Completed Successfully!")
